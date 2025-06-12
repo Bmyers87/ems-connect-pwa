@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMS Connect Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Link to your PWA manifest file -->
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Basic styling for the message box */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50; /* Green for success */
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+        .message-box.error {
+            background-color: #f44336; /* Red for error */
+        }
+        .message-box.show {
+            display: block;
+            opacity: 1;
+        }
+        /* Hide sections by default for non-admins */
+        .admin-only-section {
+            display: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <div id="messageBox" class="message-box"></div>
+
+    <header class="bg-blue-800 text-white p-4 shadow-md rounded-b-lg">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center">
+            <h1 class="text-2xl font-bold mb-2 sm:mb-0">EMS Connect</h1>
+            <div class="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                <div class="text-sm">
+                    User ID: <span id="userIdDisplay" class="font-medium">Loading...</span>
+                </div>
+                <!-- Admin toggle for demonstration -->
+                <div class="flex items-center space-x-2">
+                    <label for="adminModeToggle" class="text-sm font-medium">Admin Mode:</label>
+                    <input type="checkbox" id="adminModeToggle" class="form-checkbox h-4 w-4 text-blue-600 rounded">
+                </div>
+                <button id="enableNotificationsBtn" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-1 px-3 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Enable Notifications
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <section id="emergencyAlertSection" class="bg-red-600 text-white p-3 text-center font-semibold hidden rounded-lg mx-4 mt-4 shadow-lg">
+        <div class="container mx-auto flex items-center justify-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span id="emergencyAlertText"></span>
+            <button id="clearAlertBtn" class="ml-4 bg-red-800 hover:bg-red-900 text-white text-xs font-bold py-1 px-3 rounded-md transition duration-300 ease-in-out admin-only-element">Clear Alert</button>
+        </div>
+    </section>
+
+    <main class="container mx-auto p-4 flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <section class="md:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Agency Announcements & News</h2>
+            <div id="announcementsList" class="space-y-4">
+                <p class="text-gray-500" id="loadingAnnouncements">Loading announcements...</p>
+            </div>
+            <div class="mt-6 pt-4 border-t admin-only-section" id="addAnnouncementForm">
+                <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Announcement</h3>
+                <input type="text" id="newAnnouncementTitle" placeholder="Announcement Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                <textarea id="newAnnouncementContent" placeholder="Announcement Details" rows="3" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <select id="newAnnouncementCategory" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Select Category</option>
+                    <option value="Operational">Operational</option>
+                    <option value="HR">HR</option>
+                    <option value="Training">Training</option>
+                    <option value="Safety">Safety</option>
+                    <option value="General">General</option>
+                </select>
+                <button id="addAnnouncementBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Post Announcement
+                </button>
+            </div>
+        </section>
+
+        <div class="md:col-span-1 space-y-6">
+
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Document & Policy Updates</h2>
+                <div id="documentsList" class="space-y-3">
+                    <p class="text-gray-500" id="loadingDocuments">Loading documents...</p>
+                </div>
+                <div class="mt-6 pt-4 border-t admin-only-section" id="addDocumentForm">
+                    <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Document</h3>
+                    <input type="text" id="newDocumentTitle" placeholder="Document Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="newDocumentVersion" placeholder="Version (e.g., 1.0)" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <button id="addDocumentBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                        Add Document
+                    </button>
+                </div>
+            </section>
+
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Training & Resource Updates</h2>
+                <div id="trainingList" class="space-y-3">
+                    <p class="text-gray-500" id="loadingTraining">Loading training updates...</p>
+                </div>
+                <div class="mt-6 pt-4 border-t admin-only-section" id="addTrainingForm">
+                    <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Training Update</h3>
+                    <input type="text" id="newTrainingTitle" placeholder="Training Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <textarea id="newTrainingDescription" placeholder="Description" rows="2" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    <button id="addTrainingBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                        Add Training
+                    </button>
+                </div>
+            </section>
+
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Feedback & Clarification</h2>
+                <p class="text-gray-600 mb-4">Have questions or need clarification on an update? Send us your feedback.</p>
+                <textarea id="feedbackContent" placeholder="Your feedback or question..." rows="4" class="w-full p-2 border border-gray-300 rounded-md mb-4 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <button id="submitFeedbackBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Submit Feedback
+                </button>
+            </section>
+
+            <section class="bg-white p-6 rounded-lg shadow-lg admin-only-section" id="emergencyAlertControl">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Emergency Alert Control (Admin)</h2>
+                <input type="text" id="emergencyAlertInput" placeholder="Enter emergency message" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-red-500 focus:border-red-500">
+                <button id="triggerAlertBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Trigger Emergency Alert
+                </button>
+            </section>
+
+        </div>
+    </main>
+
+    <footer class="bg-gray-200 text-gray-700 p-4 text-center mt-6 rounded-t-lg">
+        <div class="container mx-auto">
+            &copy; 2025 EMS Connect. All rights reserved.
+        </div>
+    </footer>
+
+    <script type="module">
+        // Firebase SDK imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        } catch (e) {
+            console.error("Error parsing __firebase_config:", e);
+            showMessage("Failed to load Firebase configuration.", "error");
+        }
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId;
+        let isAdmin = false; // Frontend flag for admin mode
+
+        // Function to display messages (success/error)
+        function showMessage(message, type = 'success') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.className = `message-box ${type} show`;
+            setTimeout(() => {
+                messageBox.className = `message-box ${type}`;
+            }, 3000); // Hide after 3 seconds
+        }
+
+        // --- Frontend Admin Mode Logic ---
+        const adminModeToggle = document.getElementById('adminModeToggle');
+        const adminOnlySections = document.querySelectorAll('.admin-only-section');
+        const adminOnlyElements = document.querySelectorAll('.admin-only-element'); // For individual elements
+
+        function updateAdminVisibility() {
+            if (isAdmin) {
+                adminOnlySections.forEach(section => section.style.display = 'block'); // Or 'grid', 'flex' depending on layout
+                adminOnlyElements.forEach(element => element.style.display = 'inline-block'); // Or 'block', 'flex'
+            } else {
+                adminOnlySections.forEach(section => section.style.display = 'none');
+                adminOnlyElements.forEach(element => element.style.display = 'none');
+            }
+        }
+
+        adminModeToggle.addEventListener('change', (event) => {
+            isAdmin = event.target.checked;
+            updateAdminVisibility();
+        });
+
+        // Initialize admin visibility on load
+        updateAdminVisibility();
+
+        // --- PWA Service Worker & Push Notification Logic ---
+
+        // Public VAPID key (replace with your actual key generated from a backend)
+        // For demonstration, this is a placeholder. You'd generate this on your server.
+        // This is commented out to avoid the error until a valid key is provided.
+        // const publicVapidKey = 'YOUR_PUBLIC_VAPID_KEY_HERE';
+
+        // Function to urlBase64ToUint8Array (utility for VAPID key)
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        // Register Service Worker and subscribe for push notifications
+        async function registerServiceWorkerAndSubscribe() {
+            // Temporarily disable push notification subscription attempt to avoid VAPID key error
+            // Also, the 404 for service-worker.js is preventing actual registration.
+            showMessage('Push notifications are not fully enabled without a backend and VAPID key.', 'error');
+            document.getElementById('enableNotificationsBtn').disabled = true;
+            document.getElementById('enableNotificationsBtn').textContent = 'Not Fully Enabled';
+        }
+
+        // --- End PWA Service Worker & Push Notification Logic ---
+
+
+        // Initialize Firebase and set up authentication
+        async function initializeFirebaseAndAuth() {
+            // Check if firebaseConfig has a projectId before initializing
+            if (!firebaseConfig || !firebaseConfig.projectId) {
+                console.error("Firebase initialization failed: projectId not provided in firebaseConfig.");
+                showMessage("Firebase setup incomplete. Cannot connect to database.", "error");
+                document.getElementById('userIdDisplay').textContent = 'Error: No Project ID';
+                return; // Stop execution if Firebase cannot be initialized
+            }
+
+            try {
+                // Initialize Firebase app
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Listen for auth state changes
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        // User is signed in
+                        userId = user.uid;
+                        document.getElementById('userIdDisplay').textContent = userId;
+                        console.log("Firebase initialized and user authenticated:", userId);
+
+                        // Once authenticated, start listening for data
+                        if (db) {
+                            setupRealtimeListeners();
+                        } else {
+                            console.error("Firestore DB not initialized after auth.");
+                            showMessage("Database connection failed.", "error");
+                        }
+                    } else {
+                        // User is signed out, try to sign in
+                        if (initialAuthToken) {
+                            // Sign in with custom token if available
+                            await signInWithCustomToken(auth, initialAuthToken);
+                        } else {
+                            // Sign in anonymously if no custom token
+                            await signInAnonymously(auth);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase or authenticating:", error);
+                showMessage("Failed to initialize Firebase. Check console for details.", "error");
+                document.getElementById('userIdDisplay').textContent = 'Error';
+            }
+        }
+
+        // Setup real-time listeners for different data collections
+        function setupRealtimeListeners() {
+            if (!db || !userId) {
+                console.error("Firestore not initialized or userId not available. Cannot setup listeners.");
+                return;
+            }
+
+            // 1. Announcements Listener
+            const announcementsColRef = collection(db, `artifacts/${appId}/public/data/announcements`);
+            const qAnnouncements = query(announcementsColRef);
+
+            onSnapshot(qAnnouncements, (snapshot) => {
+                const announcementsList = document.getElementById('announcementsList');
+                announcementsList.innerHTML = '';
+                document.getElementById('loadingAnnouncements').style.display = 'none';
+
+                if (snapshot.empty) {
+                    announcementsList.innerHTML = '<p class="text-gray-500">No announcements yet.</p>';
+                    return;
+                }
+
+                const announcements = [];
+                snapshot.forEach(doc => {
+                    announcements.push({ id: doc.id, ...doc.data() });
+                });
+
+                announcements.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+
+                announcements.forEach(announcement => {
+                    const date = announcement.timestamp ? new Date(announcement.timestamp.toDate()).toLocaleString() : 'N/A';
+                    const categoryClass = announcement.category ? `bg-blue-100 text-blue-800` : `bg-gray-100 text-gray-700`;
+                    announcementsList.innerHTML += `
+                        <div class="border border-gray-200 p-4 rounded-md shadow-sm bg-gray-50">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-lg font-semibold text-gray-800">${announcement.title}</h3>
+                                <span class="text-xs ${categoryClass} px-2 py-1 rounded-full">${announcement.category || 'General'}</span>
+                            </div>
+                            <p class="text-gray-700 text-sm mb-2">${announcement.content}</p>
+                            <p class="text-xs text-gray-500">Posted: ${date} by ${announcement.postedBy || 'Admin'}</p>
+                        </div>
+                    `;
+                });
+            }, (error) => {
+                console.error("Error fetching announcements:", error);
+                showMessage("Failed to load announcements.", "error");
+                document.getElementById('loadingAnnouncements').textContent = 'Failed to load announcements.';
+            });
+
+            // 2. Documents Listener
+            const documentsColRef = collection(db, `artifacts/${appId}/public/data/documents`);
+            const qDocuments = query(documentsColRef);
+
+            onSnapshot(qDocuments, (snapshot) => {
+                const documentsList = document.getElementById('documentsList');
+                documentsList.innerHTML = '';
+                document.getElementById('loadingDocuments').style.display = 'none';
+
+                if (snapshot.empty) {
+                    documentsList.innerHTML = '<p class="text-gray-500">No documents yet.</p>';
+                    return;
+                }
+
+                const documents = [];
+                snapshot.forEach(doc => {
+                    documents.push({ id: doc.id, ...doc.data() });
+                });
+
+                documents.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+
+                documents.forEach(doc => {
+                    const date = doc.timestamp ? new Date(doc.timestamp.toDate()).toLocaleDateString() : 'N/A';
+                    documentsList.innerHTML += `
+                        <div class="flex items-center justify-between p-3 border border-gray-200 rounded-md bg-gray-50">
+                            <span class="text-gray-800 font-medium">${doc.title} <span class="text-xs text-gray-500">(v${doc.version})</span></span>
+                            <span class="text-xs text-gray-500">Updated: ${date}</span>
+                        </div>
+                    `;
+                });
+            }, (error) => {
+                console.error("Error fetching documents:", error);
+                showMessage("Failed to load documents.", "error");
+                document.getElementById('loadingDocuments').textContent = 'Failed to load documents.';
+            });
+
+            // 3. Training Updates Listener
+            const trainingColRef = collection(db, `artifacts/${appId}/public/data/training_updates`);
+            const qTraining = query(trainingColRef);
+
+            onSnapshot(qTraining, (snapshot) => {
+                const trainingList = document.getElementById('trainingList');
+                trainingList.innerHTML = '';
+                document.getElementById('loadingTraining').style.display = 'none';
+
+                if (snapshot.empty) {
+                    trainingList.innerHTML = '<p class="text-gray-500">No training updates yet.</p>';
+                    return;
+                }
+
+                const trainingUpdates = [];
+                snapshot.forEach(doc => {
+                    trainingUpdates.push({ id: doc.id, ...doc.data() });
+                });
+
+                trainingUpdates.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+
+                trainingUpdates.forEach(update => {
+                    const date = update.timestamp ? new Date(update.timestamp.toDate()).toLocaleDateString() : 'N/A';
+                    trainingList.innerHTML += `
+                        <div class="p-3 border border-gray-200 rounded-md bg-gray-50">
+                            <h3 class="text-md font-medium text-gray-800">${update.title}</h3>
+                            <p class="text-gray-700 text-sm mb-1">${update.description}</p>
+                            <p class="text-xs text-gray-500">Posted: ${date}</p>
+                        </div>
+                    `;
+                });
+            }, (error) => {
+                console.error("Error fetching training updates:", error);
+                showMessage("Failed to load training updates.", "error");
+                document.getElementById('loadingTraining').textContent = 'Failed to load training updates.';
+            });
+
+            // 4. Emergency Alerts Listener
+            const emergencyAlertsColRef = collection(db, `artifacts/${appId}/public/data/emergency_alerts`);
+            const qEmergencyAlerts = query(emergencyAlertsColRef);
+
+            onSnapshot(qEmergencyAlerts, (snapshot) => {
+                const emergencyAlertSection = document.getElementById('emergencyAlertSection');
+                const emergencyAlertText = document.getElementById('emergencyAlertText');
+                const clearAlertBtn = document.getElementById('clearAlertBtn');
+
+                if (snapshot.empty) {
+                    emergencyAlertSection.classList.add('hidden');
+                    emergencyAlertText.textContent = '';
+                } else {
+                    const alerts = [];
+                    snapshot.forEach(d => alerts.push({ id: d.id, ...d.data() }));
+                    alerts.sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0));
+                    const latestAlert = alerts[0];
+
+                    if (latestAlert && latestAlert.message) {
+                        emergencyAlertSection.classList.remove('hidden');
+                        emergencyAlertText.textContent = latestAlert.message;
+                        // Only attach click handler if in admin mode (frontend)
+                        clearAlertBtn.onclick = async () => {
+                             if (!isAdmin) {
+                                 showMessage("You must be in Admin Mode to clear alerts.", "error");
+                                 return;
+                             }
+                            try {
+                                await deleteDoc(doc(db, `artifacts/${appId}/public/data/emergency_alerts`, latestAlert.id));
+                                showMessage("Emergency alert cleared.", "success");
+                            } catch (e) {
+                                console.error("Error clearing alert: ", e);
+                                showMessage("Failed to clear alert.", "error");
+                            }
+                        };
+                    } else {
+                        emergencyAlertSection.classList.add('hidden');
+                        emergencyAlertText.textContent = '';
+                    }
+                }
+            }, (error) => {
+                console.error("Error fetching emergency alerts:", error);
+                showMessage("Failed to load emergency alerts.", "error");
+            });
+        }
+
+        // Helper function to check if database is connected before operations
+        function isDatabaseConnected() {
+            if (!db) {
+                showMessage("Database not connected. Please check Firebase setup.", "error");
+                return false;
+            }
+            return true;
+        }
+
+        // Event Listener for adding a new announcement
+        document.getElementById('addAnnouncementBtn').addEventListener('click', async () => {
+            if (!isDatabaseConnected() || !isAdmin) {
+                if (!isAdmin) showMessage("You must be in Admin Mode to post announcements.", "error");
+                return;
+            }
+
+            const title = document.getElementById('newAnnouncementTitle').value.trim();
+            const content = document.getElementById('newAnnouncementContent').value.trim();
+            const category = document.getElementById('newAnnouncementCategory').value;
+
+            if (!title || !content) {
+                showMessage("Please fill in both title and content for the announcement.", "error");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/announcements`), {
+                    title: title,
+                    content: content,
+                    category: category,
+                    timestamp: serverTimestamp(),
+                    postedBy: auth.currentUser?.uid || 'Anonymous'
+                });
+                showMessage("Announcement posted successfully!");
+                document.getElementById('newAnnouncementTitle').value = '';
+                document.getElementById('newAnnouncementContent').value = '';
+                document.getElementById('newAnnouncementCategory').value = '';
+            } catch (e) {
+                console.error("Error adding announcement: ", e);
+                showMessage("Error posting announcement. Please try again.", "error");
+            }
+        });
+
+        // Event Listener for adding a new document
+        document.getElementById('addDocumentBtn').addEventListener('click', async () => {
+            if (!isDatabaseConnected() || !isAdmin) {
+                 if (!isAdmin) showMessage("You must be in Admin Mode to add documents.", "error");
+                return;
+            }
+            const title = document.getElementById('newDocumentTitle').value.trim();
+            const version = document.getElementById('newDocumentVersion').value.trim();
+
+            if (!title || !version) {
+                showMessage("Please fill in both title and version for the document.", "error");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/documents`), {
+                    title: title,
+                    version: version,
+                    timestamp: serverTimestamp(),
+                    postedBy: auth.currentUser?.uid || 'Anonymous'
+                });
+                showMessage("Document added successfully!");
+                document.getElementById('newDocumentTitle').value = '';
+                document.getElementById('newDocumentVersion').value = '';
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                showMessage("Error adding document. Please try again.", "error");
+            }
+        });
+
+        // Event Listener for adding a new training update
+        document.getElementById('addTrainingBtn').addEventListener('click', async () => {
+            if (!isDatabaseConnected() || !isAdmin) {
+                 if (!isAdmin) showMessage("You must be in Admin Mode to add training updates.", "error");
+                return;
+            }
+            const title = document.getElementById('newTrainingTitle').value.trim();
+            const description = document.getElementById('newTrainingDescription').value.trim();
+
+            if (!title || !description) {
+                showMessage("Please fill in both title and description for the training update.", "error");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/training_updates`), {
+                    title: title,
+                    description: description,
+                    timestamp: serverTimestamp(),
+                    postedBy: auth.currentUser?.uid || 'Anonymous'
+                });
+                showMessage("Training update added successfully!");
+                document.getElementById('newTrainingTitle').value = '';
+                document.getElementById('newTrainingDescription').value = '';
+            } catch (e) {
+                console.error("Error adding training update: ", e);
+                showMessage("Error adding training update. Please try again.", "error");
+            }
+        });
+
+        // Event Listener for submitting feedback (Feedback is open to all)
+        document.getElementById('submitFeedbackBtn').addEventListener('click', async () => {
+            if (!isDatabaseConnected()) { // Feedback is open to all, but still needs DB connection
+                return;
+            }
+            const content = document.getElementById('feedbackContent').value.trim();
+
+            if (!content) {
+                showMessage("Please enter your feedback or question.", "error");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/feedback`), {
+                    content: content,
+                    timestamp: serverTimestamp(),
+                    submittedBy: auth.currentUser?.uid || 'Anonymous'
+                });
+                showMessage("Feedback submitted successfully!");
+                document.getElementById('feedbackContent').value = '';
+            } catch (e) {
+                console.error("Error submitting feedback: ", e);
+                showMessage("Error submitting feedback. Please try again.", "error");
+            }
+        });
+
+        // Event Listener for triggering an emergency alert
+        document.getElementById('triggerAlertBtn').addEventListener('click', async () => {
+            if (!isDatabaseConnected() || !isAdmin) {
+                 if (!isAdmin) showMessage("You must be in Admin Mode to trigger alerts.", "error");
+                return;
+            }
+            const message = document.getElementById('emergencyAlertInput').value.trim();
+
+            if (!message) {
+                showMessage("Please enter a message for the emergency alert.", "error");
+                return;
+            }
+
+            try {
+                await addDoc(collection(db, `artifacts/${appId}/public/data/emergency_alerts`), {
+                    message: message,
+                    timestamp: serverTimestamp(),
+                    triggeredBy: auth.currentUser?.uid || 'Anonymous'
+                });
+                showMessage("Emergency alert triggered successfully!");
+                document.getElementById('emergencyAlertInput').value = '';
+            } catch (e) {
+                console.error("Error triggering emergency alert: ", e);
+                showMessage("Error triggering emergency alert. Please try again.", "error");
+            }
+        });
+
+        // Initialize Firebase and Auth when the script loads
+        initializeFirebaseAndAuth();
+
+        // Register Service Worker and set up push notifications after everything else
+        // This ensures Firebase is initialized and userId is potentially available if needed for subscription
+        window.addEventListener('load', () => {
+            registerServiceWorkerAndSubscribe();
+        });
+    </script>
+</body>
+</html>
