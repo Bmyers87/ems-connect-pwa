@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMS Connect Platform</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter font from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Light gray background */
+        }
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Basic styling for the message box */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #4CAF50; /* Green for success */
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            display: none; /* Hidden by default */
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+        .message-box.error {
+            background-color: #f44336; /* Red for error */
+        }
+        .message-box.show {
+            display: block;
+            opacity: 1;
+        }
+        /* Remove modal styles, as it's no longer used for calendar day details */
+        .modal, .modal-content, .close-button {
+            display: none !important; /* Hide elements associated with the old calendar modal */
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Message Box for alerts/confirmations -->
+    <div id="messageBox" class="message-box"></div>
+
+    <!-- Modal for showing daily events (now hidden as per list view) -->
+    <!-- This modal is kept in HTML but hidden by CSS to avoid JS errors if references exist, and for potential future re-introduction. -->
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h3 id="modalDate" class="text-xl font-semibold mb-3"></h3>
+            <div id="modalEventsList" class="space-y-2">
+                <!-- Events for the selected day will be loaded here -->
+            </div>
+            <p id="noEventsMessage" class="text-gray-500 hidden">No events for this day.</p>
+        </div>
+    </div>
+
+    <!-- Header Section -->
+    <header class="bg-blue-800 text-white p-4 shadow-md rounded-b-lg">
+        <div class="container mx-auto flex flex-col sm:flex-row justify-between items-center">
+            <h1 class="text-2xl font-bold mb-2 sm:mb-0">EMS Connect</h1>
+            <div class="text-sm">
+                User ID: <span id="userIdDisplay" class="font-medium">Loading...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Emergency Alert Banner -->
+    <section id="emergencyAlertSection" class="bg-red-600 text-white p-3 text-center font-semibold hidden rounded-lg mx-4 mt-4 shadow-lg">
+        <div class="container mx-auto flex items-center justify-center">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <span id="emergencyAlertText"></span>
+        </div>
+    </section>
+
+    <!-- Main Content Area -->
+    <main class="container mx-auto p-4 flex-grow grid grid-cols-1 md:grid-cols-3 gap-6">
+
+        <!-- Centralized Announcement & News Feed -->
+        <section class="md:col-span-2 bg-white p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Agency Announcements & News</h2>
+            <div id="announcementsList" class="space-y-4">
+                <!-- Announcements will be loaded here -->
+                <p class="text-gray-500" id="loadingAnnouncements">Loading announcements...</p>
+            </div>
+            <!-- Simple form to add an announcement (for demo/admin) -->
+            <div id="addAnnouncementForm" class="mt-6 pt-4 border-t hidden">
+                <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Announcement</h3>
+                <input type="text" id="newAnnouncementTitle" placeholder="Announcement Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                <textarea id="newAnnouncementContent" placeholder="Announcement Details" rows="3" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <select id="newAnnouncementCategory" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <option value="">Select Category</option>
+                    <option value="Operational">Operational</option>
+                    <option value="HR">HR</option>
+                    <option value="Training">Training</option>
+                    <option value="Safety">Safety</option>
+                    <option value="General">General</option>
+                </select>
+                <button id="addAnnouncementBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Post Announcement
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Sidebar for Documents, Training, Feedback, Calendar, and Issue Reporting -->
+        <div class="md:col-span-1 space-y-6">
+
+            <!-- Document & Policy Updates Repository -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Document & Policy Updates</h2>
+                <div id="documentsList" class="space-y-3">
+                    <!-- Documents will be loaded here -->
+                    <p class="text-gray-500" id="loadingDocuments">Loading documents...</p>
+                </div>
+                <!-- Simple form to add a document (for demo/admin) -->
+                <div id="addDocumentForm" class="mt-6 pt-4 border-t hidden">
+                    <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Document</h3>
+                    <input type="text" id="newDocumentTitle" placeholder="Document Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="text" id="newDocumentVersion" placeholder="Version (e.g., 1.0)" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <button id="addDocumentBtn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                        Add Document
+                    </button>
+                </div>
+            </section>
+
+            <!-- Training & Resource Updates -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Training & Resource Updates</h2>
+                <div id="trainingList" class="space-y-3">
+                    <p class="text-gray-500" id="loadingTraining">Loading training updates...</p>
+                </div>
+                <div id="addTrainingForm" class="mt-6 pt-4 border-t hidden">
+                    <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Training Update</h3>
+                    <input type="text" id="newTrainingTitle" placeholder="Training Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <textarea id="newTrainingDescription" placeholder="Description" rows="2" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    <button id="addTrainingBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                        Add Training
+                    </button>
+                </div>
+            </section>
+
+            <!-- Calendar Section (Now Yearly List View) -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Agency Calendar</h2>
+                <div id="yearlyCalendarList" class="space-y-4">
+                    <!-- Calendar events will be loaded here in list view -->
+                    <p class="text-gray-500 text-center" id="loadingCalendar">Loading calendar events...</p>
+                </div>
+
+                <!-- Form to add new calendar events (admin only) -->
+                <div id="addCalendarEventForm" class="mt-6 pt-4 border-t hidden">
+                    <h3 class="text-xl font-medium text-blue-700 mb-3">Add New Calendar Event</h3>
+                    <input type="text" id="newEventTitle" placeholder="Event Title" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <input type="date" id="newEventDate" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500">
+                    <textarea id="newEventDescription" placeholder="Event Description" rows="2" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    <button id="addEventBtn" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                        Add Event
+                    </button>
+                </div>
+            </section>
+
+            <!-- Report an Issue Section -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Report an Issue</h2>
+                <p class="text-gray-600 mb-4">Report any operational issues, equipment malfunctions, or other concerns.</p>
+                <input type="text" id="issueTitle" placeholder="Issue Summary (e.g., Ambulance 3 AC broken)" class="w-full p-2 border border-gray-300 rounded-md mb-3 focus:ring-red-500 focus:border-red-500">
+                <textarea id="issueDescription" placeholder="Detailed description of the issue..." rows="4" class="w-full p-2 border border-gray-300 rounded-md mb-4 focus:ring-red-500 focus:border-red-500"></textarea>
+                <button id="submitIssueBtn" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Submit Issue Report
+                </button>
+            </section>
+
+            <!-- Reported Issues (Admin View) -->
+            <section id="reportedIssuesAdminView" class="bg-white p-6 rounded-lg shadow-lg hidden">
+                <h2 class="text-2xl font-semibold text-red-800 mb-4 border-b pb-2">Reported Issues (Admin View)</h2>
+                <div id="issuesList" class="space-y-3">
+                    <p class="text-gray-500" id="loadingIssues">Loading reported issues...</p>
+                </div>
+            </section>
+
+            <!-- Feedback & Clarification Channel -->
+            <section class="bg-white p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold text-blue-800 mb-4 border-b pb-2">Feedback & Clarification</h2>
+                <p class="text-gray-600 mb-4">Have questions or need clarification on an update? Send us your feedback.</p>
+                <textarea id="feedbackContent" placeholder="Your feedback or question..." rows="4" class="w-full p-2 border border-gray-300 rounded-md mb-4 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <button id="submitFeedbackBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-md shadow-md transition duration-300 ease-in-out">
+                    Submit Feedback
+                </button>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer Section -->
+    <footer class="bg-gray-200 text-gray-700 p-4 text-center mt-6 rounded-t-lg">
+        <div class="container mx-auto">
+            &copy; 2025 EMS Connect. All rights reserved.
+        </div>
+    </footer>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Firebase SDK imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, doc, onSnapshot, addDoc, updateDoc, arrayUnion, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // Robustly parse firebaseConfig, providing an empty object as fallback if __firebase_config is invalid/undefined
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        } catch (e) {
+            console.error("Error parsing __firebase_config:", e);
+        }
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app, db, auth, userId;
+        let isAdmin = false; // Flag to determine if the current user is an admin
+
+        let allCalendarEvents = []; // To store all fetched calendar events
+
+
+        // Function to display messages (success/error)
+        function showMessage(message, type = 'success') {
+            const messageBox = document.getElementById('messageBox');
+            if (messageBox) { // Null check
+                messageBox.textContent = message;
+                messageBox.className = `message-box ${type} show`;
+                setTimeout(() => {
+                    messageBox.className = `message-box ${type}`;
+                }, 3000); // Hide after 3 seconds
+            }
+        }
+
+        // Function to check if the user is an admin (for this prototype)
+        function checkAdminStatus(currentUserId) {
+            // For demo purposes, any user ID starting with 'admin-' will be considered an admin.
+            // In a real application, this would involve a secure backend check against a user roles database.
+            return currentUserId && currentUserId.startsWith('admin-');
+        }
+
+        // Function to toggle visibility of admin forms and sections
+        function toggleAdminForms() {
+            const addAnnouncementForm = document.getElementById('addAnnouncementForm');
+            const addDocumentForm = document.getElementById('addDocumentForm');
+            const addTrainingForm = document.getElementById('addTrainingForm');
+            const addCalendarEventForm = document.getElementById('addCalendarEventForm');
+            const reportedIssuesAdminView = document.getElementById('reportedIssuesAdminView');
+
+            if (addAnnouncementForm) addAnnouncementForm.classList.toggle('hidden', !isAdmin);
+            if (addDocumentForm) addDocumentForm.classList.toggle('hidden', !isAdmin);
+            if (addTrainingForm) addTrainingForm.classList.toggle('hidden', !isAdmin);
+            if (addCalendarEventForm) addCalendarEventForm.classList.toggle('hidden', !isAdmin);
+            if (reportedIssuesAdminView) reportedIssuesAdminView.classList.toggle('hidden', !isAdmin);
+        }
+
+
+        // Initialize Firebase and set up authentication
+        async function initializeFirebaseAndAuth() {
+            try {
+                // Initialize Firebase app
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                // Listen for auth state changes
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        // User is signed in
+                        userI
